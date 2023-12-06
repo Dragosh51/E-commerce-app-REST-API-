@@ -1,4 +1,7 @@
 const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const { Strategy: LocalStrategy } = require('passport-local');
 const { Pool } = require('pg');
 const app = express();
 const port = 3000;
@@ -15,21 +18,104 @@ const pool = new Pool({
 // Middleware to parse JSON requests
 app.use(express.json());
 
-// Create an Account (POST)
-app.post('/api/users', async (req, res) => {
+// Express session middleware (required for Passport)
+app.use(session({ secret: 'your_session_secret', resave: false, saveUninitialized: false }));
+
+// Initialize Passport.js
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport local strategy for username/password authentication
+passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+        // Query the database to find the user with the provided username
+        const { rows } = await pool.query('SELECT * FROM "User" WHERE username = $1', [username]);
+
+        // Check if the user exists
+        if (rows.length === 0) {
+            return done(null, false, { message: 'Incorrect username.' });
+        }
+
+        // Verify the password using bcrypt
+        const user = rows[0];
+        const isValidPassword = await bcrypt.compare(password, user.password);
+
+        if (!isValidPassword) {
+            return done(null, false, { message: 'Incorrect password.' });
+        }
+
+        // User authentication successful
+        return done(null, user);
+    } catch (error) {
+        return done(error);
+    }
+}));
+
+// Serialize user information into the session
+passport.serializeUser((user, done) => {
+    done(null, user.user_id);
+});
+
+// Deserialize user from the session
+passport.deserializeUser(async (userId, done) => {
+    try {
+        // Query the database to find the user by ID
+        const { rows } = await pool.query('SELECT * FROM "User" WHERE user_id = $1', [userId]);
+
+        // Check if the user exists
+        if (rows.length === 0) {
+            return done(null, false);
+        }
+
+        // User found
+        const user = rows[0];
+        return done(null, user);
+    } catch (error) {
+        return done(error);
+    }
+});
+
+// Login Endpoint (POST)
+app.post('/login', passport.authenticate('local', {
+    successRedirect: '/api/users/success', // Redirect on successful login
+    failureRedirect: '/api/users/failure', // Redirect on failed login
+    failureFlash: true,
+}));
+
+// Example success and failure routes
+app.get('/api/users/success', (req, res) => {
+    res.json({ success: true, user: req.user });
+});
+
+app.get('/api/users/failure', (req, res) => {
+    res.status(401).json({ success: false, message: 'Invalid username or password' });
+});
+
+// Register New User (POST)
+app.post('/register', async (req, res) => {
     try {
         // Extract user registration information from the request body
         const { username, password, email } = req.body;
 
-        // TODO: Validate input data
+        // Validate input data
+        if (!username || !password || !email) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Check if a user with the same username or email already exists
+        const existingUser = await pool.query('SELECT * FROM "User" WHERE username = $1 OR email = $2', [username, email]);
+
+        if (existingUser.rows.length > 0) {
+            return res.status(409).json({ error: 'User with the same username or email already exists' });
+        }
 
         // Insert the new user into the database
-        const result = await pool.query('INSERT INTO "User" (username, password, email) VALUES ($1, $2, $3) RETURNING *', [username, password, email]);
+        const result = await pool.query('INSERT INTO "User" (username, password, email) VALUES ($1, $2, $3) RETURNING user_id, username, email', [username, password, email]);
 
         // Send the response
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error('Error creating user account', error);
+        console.error('Error registering user', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
