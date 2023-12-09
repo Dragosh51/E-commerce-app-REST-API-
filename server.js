@@ -75,6 +75,125 @@ passport.deserializeUser(async (userId, done) => {
     }
 });
 
+// Create a New Cart (POST)
+app.post('/cart', async (req, res) => {
+    try {
+        // Extract user ID from the session (assuming the user is authenticated)
+        const userId = req.user ? req.user.user_id : null;
+
+        // Insert a new cart for the user in the database
+        const result = await pool.query('INSERT INTO "Cart" (user_id) VALUES ($1) RETURNING *', [userId]);
+
+        // Send the response
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creating a new cart', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Add Product to Cart (POST)
+app.post('/cart/:cartId', async (req, res) => {
+    try {
+        // Extract cart ID from request parameters
+        const { cartId } = req.params;
+
+        // Extract product ID and quantity from the request body
+        const { productId, quantity } = req.body;
+
+        // TODO: Add validation for required fields and format
+
+        // Insert the product into the cart in the database
+        const result = await pool.query('INSERT INTO "CartProduct" (cart_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *', [cartId, productId, quantity]);
+
+        // Send the response
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error adding product to cart', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Get Cart Contents by Cart ID (GET)
+app.get('/cart/:cartId', async (req, res) => {
+    try {
+        // Extract cart ID from request parameters
+        const { cartId } = req.params;
+
+        // Query the database to get the contents of the cart
+        const { rows } = await pool.query('SELECT * FROM "CartProduct" WHERE cart_id = $1', [cartId]);
+
+        // Send the response
+        res.json(rows);
+    } catch (error) {
+        console.error('Error retrieving cart contents', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Retrieve All Users (GET)
+app.get('/users', async (req, res) => {
+    try {
+        // Query the database to get all users
+        const { rows } = await pool.query('SELECT user_id, username, email FROM "User"');
+
+        // Send the response
+        res.json(rows);
+    } catch (error) {
+        console.error('Error retrieving all users', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Retrieve Single User by ID (GET)
+app.get('/users/:userId', async (req, res) => {
+    try {
+        // Extract userId from request parameters
+        const { userId } = req.params;
+
+        // Query the database to get a single user by ID
+        const { rows } = await pool.query('SELECT user_id, username, email FROM "User" WHERE user_id = $1', [userId]);
+
+        // Check if the user exists
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Send the response
+        res.json(rows[0]);
+    } catch (error) {
+        console.error('Error retrieving user by ID', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Update User by ID (PUT)
+app.put('/users/:userId', async (req, res) => {
+    try {
+        // Extract userId from request parameters
+        const { userId } = req.params;
+
+        // Extract updated user information from the request body
+        const { username, email } = req.body;
+
+        // TODO: Add validation for required fields and format
+
+        // Update the user in the database
+        const result = await pool.query('UPDATE "User" SET username = $1, email = $2 WHERE user_id = $3 RETURNING user_id, username, email', [username, email, userId]);
+
+        // Check if the user exists
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Send the response
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating user by ID', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // Retrieve Products by Category (GET)
 app.get('/products', async (req, res) => {
     try {
