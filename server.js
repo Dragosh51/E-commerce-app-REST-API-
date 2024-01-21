@@ -5,8 +5,8 @@ const { Pool } = require('pg');
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const app = express();
-const port = 3000;
-const db = require('./src/models');
+const port = 3306;
+const db = require('./models');
 
 // Database connection configuration
 const pool = new Pool({
@@ -14,7 +14,7 @@ const pool = new Pool({
     host: 'your_database_host',
     database: 'your_database_name',
     password: 'your_database_password',
-    port: 5432, // Default PostgreSQL port
+    port: 3306, // Default PostgreSQL port
 });
 
 // Middleware to parse JSON requests
@@ -36,7 +36,7 @@ app.use('/products', require('./routes/products'));
 app.use('/registration', require('./routes/registration'));
 app.use('/user', require('./routes/user'));
 
-const PORT = process.env.PORT || 5005;
+const PORT = process.env.PORT || 3306;
 
 db.sequelize
 .sync()

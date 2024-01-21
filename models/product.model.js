@@ -37,10 +37,12 @@ module.exports = (sequelize, DataTypes) => {
     );
 
     // Define associations if needed
-    Product.hasMany(models.Checkout, {
-        foreignKey: 'productID',
-        onDelete: 'CASCADE',
-    });
+    Product.associate = (models) => {
+        Product.hasMany(models.Checkout, {
+            foreignKey: 'productID',
+            onDelete: 'CASCADE',
+        });
+    };
 
     return Product;
 };
